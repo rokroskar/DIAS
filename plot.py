@@ -2,7 +2,9 @@
 
 import csv
 import sys
+import matplotlib
 import matplotlib.pyplot as plt
+matplotlib.style.use('ggplot')
 
 f = open(sys.argv[1], 'rb')
 reader = csv.DictReader(f)
@@ -36,6 +38,7 @@ plt.title(sys.argv[1])
 plt.ylabel("% Deviation of Estimate vs Actual")
 plt.xlabel("Epoch")
 plt.ylim([0,200])
+plt.tight_layout()
 plt.legend()
 plt.show()
 		
