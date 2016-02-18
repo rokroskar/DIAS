@@ -21,25 +21,27 @@ class FilesMonitor(object):
     pid = None
     times = []
     data = []
-    no_plot = False
 
-    def __init__(self, pid, no_plot): 
+    def __init__(self, pid, no_plot, quiet, delay, file = None): 
         self.pid = pid
         self.no_plot = no_plot
+        self.quiet = quiet
+        self.delay = delay
+        self.file = file
 
         signal.signal(signal.SIGINT, self.signal_handler)
 
     @staticmethod
     def get_open_files(pid):
-        pids = []
-        out = subprocess.check_output(['lsof', '-nl', '-p', '%d'%pid]).decode('UTF-8')
+        pid_string = ','.join(pid)
+        out = subprocess.check_output(['lsof', '-nl', '-p', '%s'%pid_string]).decode('UTF-8')
         
+        connections = 0
         for line in out.split('\n'):
-            try: 
-                pids.append(int(re.findall('\w+\s+(\d+)', line)[0]))
-            except IndexError: 
-                pass
-        return pids.count(pid)
+            if 'TCP' in line:
+                connections+=1
+
+        return connections
 
     def plot_data(self):
         """Make a plot of the files vs time"""
@@ -56,23 +58,44 @@ class FilesMonitor(object):
         plt.xlabel('time (s)')
         plt.ylabel('N open files')
         plt.tight_layout()
-        plt.savefig('{time}_{pid}.png'.format(time=times[0], pid=pid))
+        plt.savefig('{pid}.png'.format(pid=pid))
 
     def start(self): 
-        print(bc.BOLD + "Collecting data -- press ctrl+c to exit" + bc.ENDC)
+        print(bc.BOLD + "Collecting data for pid %d -- press ctrl+c to exit"%self.pid + bc.ENDC)
+        
+        delay = self.delay
+        
+        pid = self.pid
+
+        if self.file is None: 
+            if type(pid) is not list: 
+                pid = [str(self.pid)]
+        else:
+            with open(self.file) as f: 
+                pid = [pid for pid in f.read().split('\n') if len(pid) > 0]
+        
         while True: 
             time_in = time.time()
-            res = self.get_open_files(self.pid)
-            print(time.time(), res)
-            self.times.append(time.time())
-            self.data.append(res)
+            try:
+                res = self.get_open_files(pid)
+                if not self.quiet: 
+                    print(time.time(), res)
 
-            time_out = time.time()
-            dtime = time_out-time_in
+                self.times.append(time.time())
+                self.data.append(res)
 
-            if dtime < 0.5: 
-                time.sleep(0.5-dtime)
+                time_out = time.time()
+                dtime = time_out-time_in
 
+                if dtime < delay: 
+                    time.sleep(delay-dtime)
+
+            except subprocess.CalledProcessError: 
+                print(bc.WARNING + "Process %d finished, doesn't exist, or doesn't have TCP connections"%self.pid + bc.ENDC)
+                break
+
+        self.plot_data()
+            
     def signal_handler(self, signal, frame): 
         if not self.no_plot: 
             self.plot_data()
@@ -84,8 +107,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Monitor open files for a process -- produces a plot upon exit')
     parser.add_argument('pid', type=int, help='pid of process to monitor')
     parser.add_argument('--no-plot', dest='no_plot', action='store_true', help='skip making the plot at the end')
+    parser.add_argument('--quiet', dest='quiet', action='store_true', help='do not print timings to console')
+    parser.add_argument('--delay', dest='delay', action='store', type=float, help='delay between measurements in seconds', default = 0.2)
+    parser.add_argument('--file', dest='file', action='store', type=str, help='filename to use for reading a list of pids, one per line')
+
     args = parser.parse_args()
 
-    fm = FilesMonitor(args.pid, args.no_plot)
+    fm = FilesMonitor(args.pid, args.no_plot, args.quiet, args.delay, args.file)
     fm.start()
 
