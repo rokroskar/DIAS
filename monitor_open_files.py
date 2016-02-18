@@ -20,7 +20,7 @@ class bc:
 class FilesMonitor(object): 
     pid = None
     times = []
-    data = []
+    data = {'connections':[], 'files':[]}
 
     def __init__(self, pid, no_plot, quiet, delay, file = None): 
         self.pid = pid
@@ -37,11 +37,15 @@ class FilesMonitor(object):
         out = subprocess.check_output(['lsof', '-nl', '-p', '%s'%pid_string]).decode('UTF-8')
         
         connections = 0
-        for line in out.split('\n'):
-            if 'TCP' in line:
-                connections+=1
+        files = 0
 
-        return connections
+        for line in out.split('\n'):
+            if 'TCP' in line or 'UDP' in line:
+                connections+=1
+            else: 
+                files+=1
+
+        return connections, files
 
     def plot_data(self):
         """Make a plot of the files vs time"""
@@ -54,35 +58,42 @@ class FilesMonitor(object):
         data = self.data
         pid = self.pid
 
-        plt.plot([time - times[0] for time in times], data, 'o')
+        plt.plot([time - times[0] for time in times], data['connections'], label='connections')
+        plt.plot([time - times[0] for time in times], data['files'], label='files')
+        plt.semilogy()
         plt.xlabel('time (s)')
         plt.ylabel('N open files')
+        plt.legend(fontsize='small')
         plt.tight_layout()
         plt.savefig('{pid}.png'.format(pid=pid))
 
-    def start(self): 
-        print(bc.BOLD + "Collecting data for pid %d -- press ctrl+c to exit"%self.pid + bc.ENDC)
-        
-        delay = self.delay
-        
-        pid = self.pid
-
+    def get_pids(self):
         if self.file is None: 
             if type(pid) is not list: 
                 pid = [str(self.pid)]
         else:
             with open(self.file) as f: 
                 pid = [pid for pid in f.read().split('\n') if len(pid) > 0]
+        return pid
+
+    def start(self): 
+        print(bc.BOLD + "Collecting data for pid %d -- press ctrl+c to exit"%self.pid + bc.ENDC)
+        
+        delay = self.delay
         
         while True: 
             time_in = time.time()
+
+            pids = self.get_pids()
+            
             try:
-                res = self.get_open_files(pid)
+                connections, files = self.get_open_files(pids)
+                self.data['connections'].append(connections)
+                self.data['files'].append(files)
+                self.times.append(time.time())
+
                 if not self.quiet: 
                     print(time.time(), res)
-
-                self.times.append(time.time())
-                self.data.append(res)
 
                 time_out = time.time()
                 dtime = time_out-time_in
