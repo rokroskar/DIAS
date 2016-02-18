@@ -18,6 +18,21 @@ class bc:
     UNDERLINE = '\033[4m'
 
 class FilesMonitor(object): 
+    """A simple class for tracking the TCP/UDP connections and open files of a process
+
+    Arguments: 
+
+    pid: the process ID to track
+
+    no_plot: skip making the plot at the end (useful if no matplotlib present)
+
+    quiet: don't litter on the console
+
+    delay: how frequently to look for updates
+
+    file: a file specifying a group of PIDs to track, one per line
+    """
+
     pid = None
     times = []
     data = {'connections':[], 'files':[]}
@@ -33,6 +48,10 @@ class FilesMonitor(object):
 
     @staticmethod
     def get_open_files(pid):
+        """Return the total number of open connections and files for the process(s) specified 
+        by pid. The pid can be a list.
+        """
+
         pid_string = ','.join(pid)
         out = subprocess.check_output(['lsof', '-nl', '-p', '%s'%pid_string]).decode('UTF-8')
         
@@ -48,7 +67,7 @@ class FilesMonitor(object):
         return connections, files
 
     def plot_data(self):
-        """Make a plot of the files vs time"""
+        """Make a plot of the open connections and files vs time"""
         import matplotlib
         matplotlib.use('agg')
         import matplotlib.pylab as plt 
@@ -68,6 +87,7 @@ class FilesMonitor(object):
         plt.savefig('{pid}.png'.format(pid=pid))
 
     def get_pids(self):
+        """Helper function to get pids out of a file or turn the single pid into a string"""
         if self.file is None: 
             if type(pid) is not list: 
                 pid = [str(self.pid)]
@@ -77,6 +97,8 @@ class FilesMonitor(object):
         return pid
 
     def start(self): 
+        """Start the monitoring"""
+        
         print(bc.BOLD + "Collecting data for pid %d -- press ctrl+c to exit"%self.pid + bc.ENDC)
         
         delay = self.delay
