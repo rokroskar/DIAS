@@ -6,3 +6,7 @@ find src -name *.java > dias_sources
 cat dias_sources peer_sampling_service_sources > all_sources
 
 javac -d build/classes -sourcepath src -cp lib/*:build/classes/:lib/unused/ProtoPeer.jar @all_sources
+
+rm dias_sources
+rm peer_sampling_service_sources
+rm all_sources
